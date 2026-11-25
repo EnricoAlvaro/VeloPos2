@@ -1,5 +1,3 @@
-// Vercel serverless API for the Integrated Reservation, Sales, and Inventory System.
-// The same app is also used by server.js for local development.
 require('dotenv').config();
 require('express-async-errors');
 
@@ -385,7 +383,6 @@ app.post('/api/vegetables/deliveries', requireLogin, async (req, res) => {
     } finally { connection.release(); }
 });
 
-// Deduct stock from earliest-expiring batches first. Quantity is in the vegetable's base unit.
 app.post('/api/vegetables/use', requireLogin, async (req, res) => {
     const { vegetableId, quantity, reason = 'Preparation', notes, openedExpiryDate } = req.body;
     const requested = Number(quantity);
@@ -413,7 +410,7 @@ app.post('/api/vegetables/use', requireLogin, async (req, res) => {
                 `INSERT INTO vegetable_movements (vegetable_id, batch_id, movement_type, quantity, reason, notes, recorded_by)
                  VALUES (?, ?, 'USAGE', ?, ?, ?, ?)`,
                 [vegetableId, batch.id, used, reason, notes || null, req.user.id]);
-            // When a partially used batch is opened/cut, keep the remainder and apply its shorter expiry date.
+     
             if (openedExpiryDate && newBalance > 0 && used > 0) {
                 if (openedExpiryDate < new Date().toISOString().slice(0, 10) || openedExpiryDate > String(batch.expiry_date).slice(0, 10)) {
                     throw new Error('Opened expiry date must be today or later and cannot be later than the original expiry date.');
@@ -508,7 +505,6 @@ app.get('/api/vegetables/movements', requireLogin, async (req, res) => {
     } catch (error) { console.error(error); res.status(500).json({ message: 'Could not load vegetable movement history.' }); }
 });
 
-// REPORTS
 app.get('/api/reports', requireLogin, async (req, res) => {
     const period = req.query.period || 'today';
     let condition = 'DATE(created_at) = CURDATE()';
@@ -522,15 +518,12 @@ app.get('/api/reports', requireLogin, async (req, res) => {
     res.json({ totalSales: sales[0].total, transactions: sales[0].transactions, bookings: bookings[0].total, period });
 });
 
-// USER MANAGEMENT AND ACTIVITY LOG: Owner only.
 app.get('/api/users', requireOwner, async (req, res) => {
     const [users] = await db.execute('SELECT id, full_name, email, role, created_at FROM users ORDER BY id');
     const [logs] = await db.execute('SELECT activity_logs.activity, activity_logs.created_at, users.full_name FROM activity_logs LEFT JOIN users ON activity_logs.user_id=users.id ORDER BY activity_logs.id DESC LIMIT 50');
     res.json({ users, logs });
 });
 
-
-// JSON error handler for unexpected route/database errors.
 app.use((error, req, res, next) => {
     console.error('API error:', error);
     if (res.headersSent) return next(error);
